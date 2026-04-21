@@ -23,6 +23,9 @@ static const int LORA_NRST = 12; // Reset pin
 static const int LORA_DIO1 = 14; // DIO1 switch
 static const int LORA_BUSY = 13;
 
+static const int SOIL_PIN = 2; //for soil moisture sensor
+
+
 /****************LoRa parameters (you need to fill these params)******************/
 static const float FREQ = 905;
 static const float BW = 125;
@@ -71,7 +74,7 @@ void error_message(const char *message, int16_t state)
 void setup()
 {
   Serial.begin(115200);
-
+ pinMode(SOIL_PIN, INPUT); //for soil sensor
   Serial.print(F("MAC Address:\t"));
   Serial.println(WiFi.macAddress());
 
@@ -150,7 +153,15 @@ void setup()
 void loop()
 {
   server.handleClient();
+int soilRaw = analogRead(SOIL_PIN); // 0–4095
+Serial.print("Soil Raw: ");
+Serial.println(soilRaw);
 
+//after you see raw values, calibrate these numbers:
+int soilPercent = map(soilRaw, 2800, 1200, 0, 100);
+soilPercent = constrain(soilPercent, 0, 100);
+
+tx_payload = "Soil: " + String(soilPercent) + "%";
   if (tx_flag)
   {
     Serial.print(F("[SX1262] Transmitting packet ... "));
