@@ -113,7 +113,6 @@ void handle_data()
 void setup()
 {
   Serial.begin(115200);
- pinMode(SOIL_PIN, INPUT); //for soil sensor
   Serial.print(F("MAC Address:\t"));
   Serial.println(WiFi.macAddress());
 
