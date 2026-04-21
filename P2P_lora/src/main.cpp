@@ -11,6 +11,7 @@
 #include <math.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <ArduinoJson.h>
 
 WebServer server(80);
 
@@ -56,6 +57,20 @@ void setFlag(void)
   rx_flag = true;
 }
 
+typedef struct
+{
+  uint8_t id;
+  float temperature;
+  bool is_active;
+} SensorData;
+
+#define NUM_SENSORS 3
+
+SensorData sensor_data_array[NUM_SENSORS] = {
+    {1, 25.5, true},
+    {2, 30.2, false},
+    {3, 28.7, true}};
+
 // It is important to remember that ISRs are supposed to be short and are mostly used for triggering flags.
 // doing Serial.print() might fail and cause device resets. This is because Serial.print() uses interrupt to read data,
 // but in an ISR, all other interrupts are suspended, and therefore the operation fails.
@@ -66,6 +81,30 @@ void error_message(const char *message, int16_t state)
   Serial.printf("ERROR!!! %s with error code %d\n", message, state);
   while (true)
     ; // loop forever
+}
+
+void handle_data()
+{
+  JsonDocument doc;
+  JsonArray array = doc.to<JsonArray>();
+
+  for (int i = 0; i < NUM_SENSORS; i++)
+  {
+    if (!sensor_data_array[i].is_active)
+    {
+      continue; // skip inactive sensors
+    }
+
+    JsonObject obj = array.add<JsonObject>();
+    obj["id"] = sensor_data_array[i].id;
+    obj["value"] = sensor_data_array[i].temperature;
+  }
+
+  String response;
+  serializeJson(array, response);
+
+  // Send HTTP 200 OK with content-type application/json
+  server.send(200, "application/json", response);
 }
 
 void setup()
@@ -79,8 +118,12 @@ void setup()
   while (WiFi.status() != WL_CONNECTED)
     delay(500);
 
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
+
   server.on("/", []()
-            { server.send(200, "text/plain", "Hello from ESP32!"); });
+            { server.send(200, "text/plain", "Hello!"); });
+  server.on("/data", HTTP_GET, handle_data); // Route to send JSON
 
   server.begin();
 
@@ -151,44 +194,6 @@ void loop()
 {
   server.handleClient();
 
-  if (tx_flag)
-  {
-    Serial.print(F("[SX1262] Transmitting packet ... "));
-
-    // you can transmit C-string or Arduino string up to
-    // 256 characters long
-    // NOTE: transmit() is a blocking method!
-    int state = radio.transmit(tx_payload);
-
-    if (state == RADIOLIB_ERR_NONE)
-    {
-      // the packet was successfully transmitted
-      Serial.println(F("success!"));
-
-      // print measured data rate
-      Serial.print(F("[SX1262] Datarate:\t"));
-      Serial.print((BW * 1000) * SF / pow(2, SF));
-      Serial.println(F(" bps"));
-    }
-    else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
-    {
-      // the supplied packet was longer than 256 bytes
-      Serial.println(F("too long!"));
-    }
-    else if (state == RADIOLIB_ERR_TX_TIMEOUT)
-    {
-      // timeout occured while transmitting packet
-      Serial.println(F("timeout!"));
-    }
-    else
-    {
-      // some other error occurred
-      Serial.print(F("failed, code "));
-      Serial.println(state);
-    }
-    tx_flag = false;
-    radio.startReceive(); // you can put a return value on this and check if the device was set to receive mode if needed
-  }
   if (rx_flag)
   {
     // reset flag
