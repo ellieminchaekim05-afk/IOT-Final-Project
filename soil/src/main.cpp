@@ -75,17 +75,17 @@ void setup()
 {
   Serial.begin(115200);
  pinMode(SOIL_PIN, INPUT); //for soil sensor
-  Serial.print(F("MAC Address:\t"));
-  Serial.println(WiFi.macAddress());
+  // Serial.print(F("MAC Address:\t"));
+  // Serial.println(WiFi.macAddress());
 
-  WiFi.begin("wahoo");
-  while (WiFi.status() != WL_CONNECTED)
-    delay(500);
+  // WiFi.begin("wahoo");
+  // while (WiFi.status() != WL_CONNECTED)
+  //   delay(500);
 
-  server.on("/", []()
-            { server.send(200, "text/plain", "Hello from ESP32!"); });
+  // server.on("/", []()
+  //           { server.send(200, "text/plain", "Hello from ESP32!"); });
 
-  server.begin();
+  // server.begin();
 
   // initialize SX1262 with default settings
   Serial.print(F("[SX1262] Initializing ... "));
@@ -152,13 +152,13 @@ void setup()
 
 void loop()
 {
-  server.handleClient();
+  // server.handleClient();
 int soilRaw = analogRead(SOIL_PIN); // 0–4095
 Serial.print("Soil Raw: ");
 Serial.println(soilRaw);
 
 //after you see raw values, calibrate these numbers:
-int soilPercent = map(soilRaw, 2800, 1200, 0, 100);
+int soilPercent = map(soilRaw, 0, 100, 0, 100);
 soilPercent = constrain(soilPercent, 0, 100);
 
 tx_payload = "Soil: " + String(soilPercent) + "%";
