@@ -51,6 +51,17 @@ SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 #if defined(ESP8266) || defined(ESP32)
 ICACHE_RAM_ATTR
 #endif
+
+//setting up packet structure
+
+struct __attribute__((__packed__)) Packet {
+  uint8_t header;   // 1 byte
+  float soil;     // 4 bytes
+         // 4 bytes
+  
+};
+
+
 void setFlag(void)
 {
   // we got a packet, set the flag. However, this might cause the interrupt to be called when a transmission takes place too
@@ -150,96 +161,75 @@ void setup()
   }
 }
 
-void loop()
+  void loop()
 {
-  // server.handleClient();
-int soilRaw = analogRead(SOIL_PIN); // 0–4095
-Serial.print("Soil Raw: ");
-Serial.println(soilRaw);
+  int soilRaw = analogRead(SOIL_PIN);
+  Serial.print("Soil Raw: ");
+  Serial.println(soilRaw);
 
-//after you see raw values, calibrate these numbers:
-int soilPercent = map(soilRaw, 0, 100, 0, 100);
-soilPercent = constrain(soilPercent, 0, 100);
+  int soilPercent = map(soilRaw, 1200, 2800, 0, 100);
+  soilPercent = constrain(soilPercent, 0, 100);
 
-tx_payload = "Soil: " + String(soilPercent) + "%";
-  if (tx_flag)
-  {
-    Serial.print(F("[SX1262] Transmitting packet ... "));
+  // ===== BUILD PACKET =====
+  Packet pkt;
+  pkt.header = 0xAB;
+  pkt.soil = (float)soilPercent;
 
-    // you can transmit C-string or Arduino string up to
-    // 256 characters long
-    // NOTE: transmit() is a blocking method!
-    int state = radio.transmit(tx_payload);
+  // ===== TRANSMIT EVERY 2 SECONDS =====
+  Serial.println("[SX1262] Transmitting packet...");
+  int state = radio.transmit((uint8_t*)&pkt, sizeof(pkt));
 
-    if (state == RADIOLIB_ERR_NONE)
-    {
-      // the packet was successfully transmitted
-      Serial.println(F("success!"));
-
-      // print measured data rate
-      Serial.print(F("[SX1262] Datarate:\t"));
-      Serial.print((BW * 1000) * SF / pow(2, SF));
-      Serial.println(F(" bps"));
-    }
-    else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
-    {
-      // the supplied packet was longer than 256 bytes
-      Serial.println(F("too long!"));
-    }
-    else if (state == RADIOLIB_ERR_TX_TIMEOUT)
-    {
-      // timeout occured while transmitting packet
-      Serial.println(F("timeout!"));
-    }
-    else
-    {
-      // some other error occurred
-      Serial.print(F("failed, code "));
-      Serial.println(state);
-    }
-    tx_flag = false;
-    radio.startReceive(); // you can put a return value on this and check if the device was set to receive mode if needed
+  if (state == RADIOLIB_ERR_NONE) {
+    Serial.println("Transmit success");
+  } else {
+    Serial.print("Transmit failed, code ");
+    Serial.println(state);
   }
-  if (rx_flag)
-  {
-    // reset flag
+
+  // go back to receive mode
+  radio.startReceive();
+
+  // ===== CHECK FOR RECEIVED PACKET =====
+  if (rx_flag) {
     rx_flag = false;
-    // you can read received data as an Arduino String
-    String rx_data;
-    int state = radio.readData(rx_data);
 
-    if (state == RADIOLIB_ERR_NONE)
-    {
-      // packet was successfully received
-      Serial.println(F("[SX1262] Received packet!"));
+    Packet rx_pkt;
+    int state = radio.readData((uint8_t*)&rx_pkt, sizeof(rx_pkt));
 
-      // print data of the packet
-      Serial.print(F("[SX1262] Data:\t\t"));
-      Serial.println(rx_data);
+    if (state == RADIOLIB_ERR_NONE) {
+      Serial.println("[SX1262] Received packet!");
 
-      // print RSSI (Received Signal Strength Indicator)
-      Serial.print(F("[SX1262] RSSI:\t\t"));
-      Serial.print(radio.getRSSI());
-      Serial.println(F(" dBm"));
+      // validate header
+      if (rx_pkt.header != 0xAB) {
+        Serial.println("Invalid packet");
+        return;
+      }
 
-      // print SNR (Signal-to-Noise Ratio)
-      Serial.print(F("[SX1262] SNR:\t\t"));
-      Serial.print(radio.getSNR());
-      Serial.println(F(" dB"));
+      Serial.print("Soil: ");
+      Serial.println(rx_pkt.soil);
+
+      Serial.print("RSSI: ");
+      Serial.println(radio.getRSSI());
+
+      Serial.print("SNR: ");
+      Serial.println(radio.getSNR());
     }
-    else if (state == RADIOLIB_ERR_CRC_MISMATCH)
-    {
-      // packet was received, but is malformed
-      Serial.println(F("CRC error!"));
+    else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+      Serial.println("CRC error!");
     }
-    else
-    {
-      // some other error occurred
-      Serial.print(F("failed, code "));
+    else {
+      Serial.print("Receive failed, code ");
       Serial.println(state);
     }
 
-    // put module back to listen mode
     radio.startReceive();
   }
+
+  delay(2000);  // send every 2 seconds
 }
+
+
+
+
+
+
