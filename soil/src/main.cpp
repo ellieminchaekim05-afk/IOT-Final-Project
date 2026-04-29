@@ -11,7 +11,6 @@
 #include <math.h>
 #include <WiFi.h>
 #include <WebServer.h>
-#include <ArduinoJson.h>
 
 WebServer server(80);
 
@@ -52,6 +51,17 @@ SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 #if defined(ESP8266) || defined(ESP32)
 ICACHE_RAM_ATTR
 #endif
+
+//setting up packet structure
+
+struct __attribute__((__packed__)) Packet {
+  uint8_t header;   // 1 byte
+  float soil;     // 4 bytes
+         // 4 bytes
+  
+};
+
+
 void setFlag(void)
 {
   // we got a packet, set the flag. However, this might cause the interrupt to be called when a transmission takes place too
@@ -59,20 +69,6 @@ void setFlag(void)
   // if not, we know it is the rx interrupt and therefore can set the flag
   rx_flag = true;
 }
-
-typedef struct
-{
-  uint8_t id;
-  float temperature;
-  bool is_active;
-} SensorData;
-
-#define NUM_SENSORS 3
-
-SensorData sensor_data_array[NUM_SENSORS] = {
-    {1, 25.5, true},
-    {2, 30.2, false},
-    {3, 28.7, true}};
 
 // It is important to remember that ISRs are supposed to be short and are mostly used for triggering flags.
 // doing Serial.print() might fail and cause device resets. This is because Serial.print() uses interrupt to read data,
@@ -86,48 +82,21 @@ void error_message(const char *message, int16_t state)
     ; // loop forever
 }
 
-void handle_data()
-{
-  JsonDocument doc;
-  JsonArray array = doc.to<JsonArray>();
-
-  for (int i = 0; i < NUM_SENSORS; i++)
-  {
-    if (!sensor_data_array[i].is_active)
-    {
-      continue; // skip inactive sensors
-    }
-
-    JsonObject obj = array.add<JsonObject>();
-    obj["id"] = sensor_data_array[i].id;
-    obj["value"] = sensor_data_array[i].temperature;
-  }
-
-  String response;
-  serializeJson(array, response);
-
-  // Send HTTP 200 OK with content-type application/json
-  server.send(200, "application/json", response);
-}
-
 void setup()
 {
   Serial.begin(115200);
-  Serial.print(F("MAC Address:\t"));
-  Serial.println(WiFi.macAddress());
+ pinMode(SOIL_PIN, INPUT); //for soil sensor
+  // Serial.print(F("MAC Address:\t"));
+  // Serial.println(WiFi.macAddress());
 
-  WiFi.begin("wahoo");
-  while (WiFi.status() != WL_CONNECTED)
-    delay(500);
+  // WiFi.begin("wahoo");
+  // while (WiFi.status() != WL_CONNECTED)
+  //   delay(500);
 
-  Serial.print("Connected to WiFi network with IP Address: ");
-  Serial.println(WiFi.localIP());
+  // server.on("/", []()
+  //           { server.send(200, "text/plain", "Hello from ESP32!"); });
 
-  server.on("/", []()
-            { server.send(200, "text/plain", "Hello!"); });
-  server.on("/data", HTTP_GET, handle_data); // Route to send JSON
-
-  server.begin();
+  // server.begin();
 
   // initialize SX1262 with default settings
   Serial.print(F("[SX1262] Initializing ... "));
@@ -192,50 +161,75 @@ void setup()
   }
 }
 
-void loop()
+  void loop()
 {
-  server.handleClient();
+  int soilRaw = analogRead(SOIL_PIN);
+  Serial.print("Soil Raw: ");
+  Serial.println(soilRaw);
 
-  if (rx_flag)
-  {
-    // reset flag
+  int soilPercent = map(soilRaw, 1200, 2800, 0, 100);
+  soilPercent = constrain(soilPercent, 0, 100);
+
+  // ===== BUILD PACKET =====
+  Packet pkt;
+  pkt.header = 0xAB;
+  pkt.soil = (float)soilPercent;
+
+  // ===== TRANSMIT EVERY 2 SECONDS =====
+  Serial.println("[SX1262] Transmitting packet...");
+  int state = radio.transmit((uint8_t*)&pkt, sizeof(pkt));
+
+  if (state == RADIOLIB_ERR_NONE) {
+    Serial.println("Transmit success");
+  } else {
+    Serial.print("Transmit failed, code ");
+    Serial.println(state);
+  }
+
+  // go back to receive mode
+  radio.startReceive();
+
+  // ===== CHECK FOR RECEIVED PACKET =====
+  if (rx_flag) {
     rx_flag = false;
-    // you can read received data as an Arduino String
-    String rx_data;
-    int state = radio.readData(rx_data);
 
-    if (state == RADIOLIB_ERR_NONE)
-    {
-      // packet was successfully received
-      Serial.println(F("[SX1262] Received packet!"));
+    Packet rx_pkt;
+    int state = radio.readData((uint8_t*)&rx_pkt, sizeof(rx_pkt));
 
-      // print data of the packet
-      Serial.print(F("[SX1262] Data:\t\t"));
-      Serial.println(rx_data);
+    if (state == RADIOLIB_ERR_NONE) {
+      Serial.println("[SX1262] Received packet!");
 
-      // print RSSI (Received Signal Strength Indicator)
-      Serial.print(F("[SX1262] RSSI:\t\t"));
-      Serial.print(radio.getRSSI());
-      Serial.println(F(" dBm"));
+      // validate header
+      if (rx_pkt.header != 0xAB) {
+        Serial.println("Invalid packet");
+        return;
+      }
 
-      // print SNR (Signal-to-Noise Ratio)
-      Serial.print(F("[SX1262] SNR:\t\t"));
-      Serial.print(radio.getSNR());
-      Serial.println(F(" dB"));
+      Serial.print("Soil: ");
+      Serial.println(rx_pkt.soil);
+
+      Serial.print("RSSI: ");
+      Serial.println(radio.getRSSI());
+
+      Serial.print("SNR: ");
+      Serial.println(radio.getSNR());
     }
-    else if (state == RADIOLIB_ERR_CRC_MISMATCH)
-    {
-      // packet was received, but is malformed
-      Serial.println(F("CRC error!"));
+    else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+      Serial.println("CRC error!");
     }
-    else
-    {
-      // some other error occurred
-      Serial.print(F("failed, code "));
+    else {
+      Serial.print("Receive failed, code ");
       Serial.println(state);
     }
 
-    // put module back to listen mode
     radio.startReceive();
   }
+
+  delay(2000);  // send every 2 seconds
 }
+
+
+
+
+
+
