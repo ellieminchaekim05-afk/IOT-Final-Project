@@ -55,7 +55,8 @@ ICACHE_RAM_ATTR
 //setting up packet structure
 
 struct __attribute__((__packed__)) Packet {
-  uint8_t header;   // 1 byte
+  uint8_t type;   // 1 byte
+  uint8_t id; //1 byte
   float soil;     // 4 bytes
          // 4 bytes
   
@@ -172,8 +173,11 @@ void setup()
 
   // ===== BUILD PACKET =====
   Packet pkt;
-  pkt.header = 0xAB;
+  pkt.type = 0xAB;
+  pkt.id = 0x01;
   pkt.soil = (float)soilPercent;
+  Serial.print("Soil Percent: ");
+  Serial.println(pkt.soil);
 
   // ===== TRANSMIT EVERY 2 SECONDS =====
   Serial.println("[SX1262] Transmitting packet...");
@@ -185,7 +189,6 @@ void setup()
     Serial.print("Transmit failed, code ");
     Serial.println(state);
   }
-
   // go back to receive mode
   radio.startReceive();
 
@@ -199,8 +202,8 @@ void setup()
     if (state == RADIOLIB_ERR_NONE) {
       Serial.println("[SX1262] Received packet!");
 
-      // validate header
-      if (rx_pkt.header != 0xAB) {
+      // validate type
+      if (rx_pkt.type != 0xAB) {
         Serial.println("Invalid packet");
         return;
       }
