@@ -37,6 +37,9 @@ static const uint16_t PREAMBLE = 8;
 
 #define RXD1 46
 #define TXD1 45
+
+const int ldrPin = 7;
+int ldrValue = 0;
 /****************Payload******************/
 String gps_buffer = ""; // change this to something unique to your group/something you want to say to each other
 
@@ -53,6 +56,14 @@ SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 #if defined(ESP8266) || defined(ESP32)
 ICACHE_RAM_ATTR
 #endif
+
+struct __attribute__((__packed__)) Packet {
+  uint8_t type;
+  uint8_t id;
+  float gps;     
+  
+};
+
 void setFlag(void)
 {
   // we got a packet, set the flag. However, this might cause the interrupt to be called when a transmission takes place too
@@ -73,18 +84,28 @@ void error_message(const char *message, int16_t state)
     ; // loop forever
 }
 
+float latitude = 0.0;
+float longitude = 0.0;
+
+int valid_data = 0;
 void displayInfo()
 {
   Serial.print(F("Location: ")); 
   if (gps.location.isValid())
   {
+    float *lat_long = new float[2];
     Serial.print(gps.location.lat(), 6);
     Serial.print(F(","));
     Serial.print(gps.location.lng(), 6);
+    Serial.println();
+    latitude = gps.location.lat();
+    longitude = gps.location.lng();
+    valid_data = 1;
   }
   else
   {
     Serial.print(F("INVALID"));
+    valid_data = 0;
   }
 
   Serial.print(F("  Date/Time: "));
@@ -128,7 +149,7 @@ void setup()
 {
   Serial.begin(115200);
   Serial1.begin(9600, SERIAL_8N1, RXD1, TXD1);
-  Serial.println("UART1 Initialized");
+  pinMode(ldrPin, INPUT);
 
   // Serial.print(F("MAC Address:\t"));
   // Serial.println(WiFi.macAddress());
@@ -223,106 +244,92 @@ String read_GPS() {
 
 void loop()
 {
-  // server.handleClient();
-  // Serial.println("Looping...");
-  
-  // String gps_data = read_GPS();
-  // if ( gps_data != "unready" ) {
-  //   Serial.println("GPS Data: " + gps_data);
-  // }
-
-  // if (gps.encode(gps_data.c_str())) {
-  //     displayInfo();
-  // }
-
+  // read raw GPS data and print it to Serial
   while (Serial1.available() > 0) {
       char c = Serial1.read();
       Serial.print(c);
       if (gps.encode(c)) {
-          // displayInfo(); 
+          displayInfo();
       }
   }
 
+  if (!valid_data) {
+    Serial.println("No valid GPS data available. Skipping transmission.");
+    return;
+  }
 
-  // if (tx_flag)
-  // {
-  //   // Serial.print(F("[SX1262] Transmitting packet ... "));
+  Packet pkt1;
+  pkt1.type = 0x01; 
+  pkt1.id = 0x02; 
+  pkt1.gps = latitude;
 
-  //   // you can transmit C-string or Arduino string up to
-  //   // 256 characters long
-  //   // NOTE: transmit() is a blocking method!
-    
-  //   // int state = radio.transmit(tx_payload);
+  Packet pkt2;
+  pkt2.type = 0x02; 
+  pkt2.id = 0x02; 
+  pkt2.gps = longitude;
 
-  //   // // if (state == RADIOLIB_ERR_NONE)
-  //   // // {
-  //   // //   // the packet was successfully transmitted
-  //   // //   Serial.println(F("success!"));
+  // read LDR value and print it to Serial
+  // ldrValue = analogRead(ldrPin);
+  // Serial.print("Light Level: ");
+  // Serial.println(ldrValue);
+  // delay(500);
+// ===== TRANSMIT EVERY 2 SECONDS =====
+  Serial.println("[SX1262] Transmitting packet...");
+  int state = radio.transmit((uint8_t*)&pkt1, sizeof(pkt1));
 
-  //   // //   // print measured data rate
-  //   // //   Serial.print(F("[SX1262] Datarate:\t"));
-  //   // //   Serial.print((BW * 1000) * SF / pow(2, SF));
-  //   // //   Serial.println(F(" bps"));
-  //   // // }
-  //   // // else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
-  //   // // {
-  //   // //   // the supplied packet was longer than 256 bytes
-  //   // //   Serial.println(F("too long!"));
-  //   // // }
-  //   // // else if (state == RADIOLIB_ERR_TX_TIMEOUT)
-  //   // // {
-  //   // //   // timeout occured while transmitting packet
-  //   // //   Serial.println(F("timeout!"));
-  //   // // }
-  //   // // else
-  //   // // {
-  //   // //   // some other error occurred
-  //   // //   Serial.print(F("failed, code "));
-  //   // //   Serial.println(state);
-  //   // // }
-  //   tx_flag = false;
-  //   radio.startReceive(); // you can put a return value on this and check if the device was set to receive mode if needed
-  // }
-  // if (rx_flag)
-  // {
-  //   // reset flag
-  //   rx_flag = false;
-  //   // you can read received data as an Arduino String
-  //   String rx_data;
-  //   int state = radio.readData(rx_data);
+  if (state == RADIOLIB_ERR_NONE) {
+    Serial.println("Transmit success");
+  } else {
+    Serial.print("Transmit failed, code ");
+    Serial.println(state);
+  }
 
-  //   if (state == RADIOLIB_ERR_NONE)
-  //   {
-  //     // packet was successfully received
-  //     Serial.println(F("[SX1262] Received packet!"));
+  state = radio.transmit((uint8_t*)&pkt2, sizeof(pkt2));
 
-  //     // print data of the packet
-  //     Serial.print(F("[SX1262] Data:\t\t"));
-  //     Serial.println(rx_data);
+  if (state == RADIOLIB_ERR_NONE) {
+    Serial.println("Transmit success");
+  } else {
+    Serial.print("Transmit failed, code ");
+    Serial.println(state);
+  }
+  // go back to receive mode
+  radio.startReceive();
 
-  //     // print RSSI (Received Signal Strength Indicator)
-  //     Serial.print(F("[SX1262] RSSI:\t\t"));
-  //     Serial.print(radio.getRSSI());
-  //     Serial.println(F(" dBm"));
+  // ===== CHECK FOR RECEIVED PACKET =====
+  if (rx_flag) {
+    rx_flag = false;
 
-  //     // print SNR (Signal-to-Noise Ratio)
-  //     Serial.print(F("[SX1262] SNR:\t\t"));
-  //     Serial.print(radio.getSNR());
-  //     Serial.println(F(" dB"));
-  //   }
-  //   else if (state == RADIOLIB_ERR_CRC_MISMATCH)
-  //   {
-  //     // packet was received, but is malformed
-  //     Serial.println(F("CRC error!"));
-  //   }
-  //   else
-  //   {
-  //     // some other error occurred
-  //     Serial.print(F("failed, code "));
-  //     Serial.println(state);
-  //   }
+    Packet rx_pkt;
+    int state = radio.readData((uint8_t*)&rx_pkt, sizeof(rx_pkt));
 
-  //   // put module back to listen mode
-  //   radio.startReceive();
-  // }
+    if (state == RADIOLIB_ERR_NONE) {
+      Serial.println("[SX1262] Received packet!");
+
+      // validate type
+      if (rx_pkt.type != 0xAB) {
+        Serial.println("Invalid packet");
+        return;
+      }
+
+      // Serial.print("Soil: ");
+      // Serial.println(rx_pkt.soil);
+
+      Serial.print("RSSI: ");
+      Serial.println(radio.getRSSI());
+
+      Serial.print("SNR: ");
+      Serial.println(radio.getSNR());
+    }
+    else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+      Serial.println("CRC error!");
+    }
+    else {
+      Serial.print("Receive failed, code ");
+      Serial.println(state);
+    }
+
+    radio.startReceive();
+  }
+
+  delay(2000);  // send every 2 seconds
 }
