@@ -24,9 +24,6 @@ static const int LORA_NRST = 12; // Reset pin
 static const int LORA_DIO1 = 14; // DIO1 switch
 static const int LORA_BUSY = 13;
 
-static const int SOIL_PIN = 2; //for soil moisture sensor
-
-
 /****************LoRa parameters (you need to fill these params)******************/
 static const float FREQ = 905;
 static const float BW = 125;
@@ -63,16 +60,16 @@ void setFlag(void)
 typedef struct
 {
   uint8_t id;
-  float temperature;
+  uint8_t type;
+  float data;
   bool is_active;
 } SensorData;
 
-#define NUM_SENSORS 3
+#define MOISTURE_TYPE 0xAB
 
-SensorData sensor_data_array[NUM_SENSORS] = {
-    {1, 25.5, true},
-    {2, 30.2, false},
-    {3, 28.7, true}};
+#define NUM_SENSORS 32
+
+SensorData sensor_data_array[NUM_SENSORS * 256]; // 0'd by default, all sensors are inactive and have 0 data
 
 // It is important to remember that ISRs are supposed to be short and are mostly used for triggering flags.
 // doing Serial.print() might fail and cause device resets. This is because Serial.print() uses interrupt to read data,
@@ -91,7 +88,7 @@ void handle_data()
   JsonDocument doc;
   JsonArray array = doc.to<JsonArray>();
 
-  for (int i = 0; i < NUM_SENSORS; i++)
+  for (int i = 0; i < NUM_SENSORS * 256; i++)
   {
     if (!sensor_data_array[i].is_active)
     {
@@ -100,7 +97,8 @@ void handle_data()
 
     JsonObject obj = array.add<JsonObject>();
     obj["id"] = sensor_data_array[i].id;
-    obj["value"] = sensor_data_array[i].temperature;
+    obj["value"] = sensor_data_array[i].data;
+    obj["type"] = sensor_data_array[i].type;
   }
 
   String response;
@@ -201,27 +199,37 @@ void loop()
     // reset flag
     rx_flag = false;
     // you can read received data as an Arduino String
-    String rx_data;
-    int state = radio.readData(rx_data);
+    uint8_t buf[6];
+    int state = radio.readData(buf, sizeof(buf));
 
     if (state == RADIOLIB_ERR_NONE)
     {
       // packet was successfully received
-      Serial.println(F("[SX1262] Received packet!"));
+      // Serial.println(F("[SX1262] Received packet!"));
 
       // print data of the packet
-      Serial.print(F("[SX1262] Data:\t\t"));
-      Serial.println(rx_data);
+      // Serial.print(F("[SX1262] Data:\t\t"));
+      if (buf[1] >= NUM_SENSORS)
+      {
+        Serial.println("Received data with invalid sensor ID: " + String(buf[1]));
+        return;
+      }
+      uint16_t idx = buf[1] * 256 + buf[0];
+      sensor_data_array[idx].type = buf[0];
+      sensor_data_array[idx].id = buf[1];
+      // Serial.println(String("ID: ") + String(sensor_data_array[id].id) + " Value: " + String(buf[2]) + " " + String(buf[3]) + " " + String(buf[4]));
+      memcpy(&sensor_data_array[idx].data, &buf[2], sizeof(float));
+      sensor_data_array[idx].is_active = true;
 
-      // print RSSI (Received Signal Strength Indicator)
-      Serial.print(F("[SX1262] RSSI:\t\t"));
-      Serial.print(radio.getRSSI());
-      Serial.println(F(" dBm"));
+      // // print RSSI (Received Signal Strength Indicator)
+      // Serial.print(F("[SX1262] RSSI:\t\t"));
+      // Serial.print(radio.getRSSI());
+      // Serial.println(F(" dBm"));
 
-      // print SNR (Signal-to-Noise Ratio)
-      Serial.print(F("[SX1262] SNR:\t\t"));
-      Serial.print(radio.getSNR());
-      Serial.println(F(" dB"));
+      // // print SNR (Signal-to-Noise Ratio)
+      // Serial.print(F("[SX1262] SNR:\t\t"));
+      // Serial.print(radio.getSNR());
+      // Serial.println(F(" dB"));
     }
     else if (state == RADIOLIB_ERR_CRC_MISMATCH)
     {
