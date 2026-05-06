@@ -88,6 +88,8 @@ float latitude = 0.0;
 float longitude = 0.0;
 
 int valid_data = 0;
+
+// parsing gps data and print it to Serial
 void displayInfo()
 {
   Serial.print(F("Location: ")); 
@@ -145,24 +147,14 @@ void displayInfo()
   Serial.println();
 }
 
+
+// setup device
 void setup()
 {
   Serial.begin(115200);
   Serial1.begin(9600, SERIAL_8N1, RXD1, TXD1);
   pinMode(ldrPin, INPUT);
 
-  // Serial.print(F("MAC Address:\t"));
-  // Serial.println(WiFi.macAddress());
-
-  // WiFi.begin("wahoo");
-  // while (WiFi.status() != WL_CONNECTED)
-  //   delay(500);
-
-  // server.on("/", []()
-  //           { server.send(200, "text/plain", "Hello from ESP32!"); });
-
-  // server.begin();
-  
   // initialize SX1262 with default settings
   Serial.print(F("[SX1262] Initializing ... "));
   int state = radio.begin();
@@ -226,6 +218,7 @@ void setup()
   }
 }
 
+// helper function to read raw GPS data and return complete sentences 
 String read_GPS() {
   // Serial.println(Serial1.read());
   while (Serial1.available() > 0) {
@@ -268,12 +261,7 @@ void loop()
   pkt2.id = 0x02; 
   pkt2.gps = longitude;
 
-  // read LDR value and print it to Serial
-  // ldrValue = analogRead(ldrPin);
-  // Serial.print("Light Level: ");
-  // Serial.println(ldrValue);
-  // delay(500);
-// ===== TRANSMIT EVERY 2 SECONDS =====
+// Transmit gps data packet
   Serial.println("[SX1262] Transmitting packet...");
   int state = radio.transmit((uint8_t*)&pkt1, sizeof(pkt1));
 
@@ -295,7 +283,7 @@ void loop()
   // go back to receive mode
   radio.startReceive();
 
-  // ===== CHECK FOR RECEIVED PACKET =====
+  // check if we receive data
   if (rx_flag) {
     rx_flag = false;
 
@@ -310,9 +298,6 @@ void loop()
         Serial.println("Invalid packet");
         return;
       }
-
-      // Serial.print("Soil: ");
-      // Serial.println(rx_pkt.soil);
 
       Serial.print("RSSI: ");
       Serial.println(radio.getRSSI());

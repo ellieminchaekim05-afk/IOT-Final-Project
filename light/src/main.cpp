@@ -151,13 +151,13 @@ void loop()
   // read LDR value and print it to Serial
   ldrValue = analogRead(ldrPin);
   Serial.print("Light Level: ");
-  Serial.println(ldrValue);
+  Serial.println(ldrValue/4090 * 100);
   
   Packet pkt;
   pkt.type = 0xFF; 
-  pkt.id = 0x01; 
-  pkt.light = (float)ldrValue;
-// ===== TRANSMIT EVERY 2 SECONDS =====
+  pkt.id = 0x03; 
+  pkt.light = (float)ldrValue/4090 * 100;
+// transmit light data packet
   Serial.println("[SX1262] Transmitting packet...");
   int state = radio.transmit((uint8_t*)&pkt, sizeof(pkt));
 
@@ -171,7 +171,7 @@ void loop()
   // go back to receive mode
   radio.startReceive();
 
-  // ===== CHECK FOR RECEIVED PACKET =====
+  // check if we receive data
   if (rx_flag) {
     rx_flag = false;
 
