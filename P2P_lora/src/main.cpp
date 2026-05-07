@@ -27,17 +27,13 @@ static const int LORA_BUSY = 13;
 /****************LoRa parameters (you need to fill these params)******************/
 static const float FREQ = 905;
 static const float BW = 125;
-static const uint8_t SF = 5;
+static const uint8_t SF = 9;
 static const int8_t TX_PWR = 20;
 static const uint8_t CR = 5;
 static const uint8_t SYNC_WORD = (uint8_t)0x34;
 static const uint16_t PREAMBLE = 8;
 
-/****************Payload******************/
-String tx_payload = "We are JED!"; // change this to something unique to your group/something you want to say to each other
-
 /****************transceiver flags******************/
-volatile bool tx_flag = false;
 volatile bool rx_flag = false;
 
 SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_NRST, LORA_BUSY);
@@ -209,11 +205,6 @@ void loop()
 
       // print data of the packet
       // Serial.print(F("[SX1262] Data:\t\t"));
-      if (buf[1] >= NUM_SENSORS)
-      {
-        Serial.println("Received data with invalid sensor ID: " + String(buf[1]));
-        return;
-      }
       uint16_t idx = buf[1] * 256 + buf[0];
       sensor_data_array[idx].type = buf[0];
       sensor_data_array[idx].id = buf[1];

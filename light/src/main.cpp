@@ -26,7 +26,7 @@ static const int LORA_BUSY = 13;
 /****************LoRa parameters (you need to fill these params)******************/
 static const float FREQ = 905;
 static const float BW = 125;
-static const uint8_t SF = 5;
+static const uint8_t SF = 9;
 static const int8_t TX_PWR = 20;
 static const uint8_t CR = 5;
 static const uint8_t SYNC_WORD = (uint8_t)0x34;
@@ -51,11 +51,11 @@ SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 ICACHE_RAM_ATTR
 #endif
 
-struct __attribute__((__packed__)) Packet {
+struct __attribute__((__packed__)) Packet
+{
   uint8_t type;
   uint8_t id;
-  float light;     
-  
+  float light;
 };
 
 void setFlag(void)
@@ -151,7 +151,7 @@ void loop()
   // read LDR value and print it to Serial
   ldrValue = analogRead(ldrPin);
   Serial.print("Light Level: ");
-  Serial.println(ldrValue/4090 * 100);
+  Serial.println((float)ldrValue/4090 * 100);
   
   Packet pkt;
   pkt.type = 0xFF; 
@@ -161,9 +161,12 @@ void loop()
   Serial.println("[SX1262] Transmitting packet...");
   int state = radio.transmit((uint8_t*)&pkt, sizeof(pkt));
 
-  if (state == RADIOLIB_ERR_NONE) {
+  if (state == RADIOLIB_ERR_NONE)
+  {
     Serial.println("Transmit success");
-  } else {
+  }
+  else
+  {
     Serial.print("Transmit failed, code ");
     Serial.println(state);
   }
@@ -176,13 +179,15 @@ void loop()
     rx_flag = false;
 
     Packet rx_pkt;
-    int state = radio.readData((uint8_t*)&rx_pkt, sizeof(rx_pkt));
+    int state = radio.readData((uint8_t *)&rx_pkt, sizeof(rx_pkt));
 
-    if (state == RADIOLIB_ERR_NONE) {
+    if (state == RADIOLIB_ERR_NONE)
+    {
       Serial.println("[SX1262] Received packet!");
 
       // validate type
-      if (rx_pkt.type != 0xAB) {
+      if (rx_pkt.type != 0xAB)
+      {
         Serial.println("Invalid packet");
         return;
       }
@@ -196,10 +201,12 @@ void loop()
       Serial.print("SNR: ");
       Serial.println(radio.getSNR());
     }
-    else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+    else if (state == RADIOLIB_ERR_CRC_MISMATCH)
+    {
       Serial.println("CRC error!");
     }
-    else {
+    else
+    {
       Serial.print("Receive failed, code ");
       Serial.println(state);
     }
@@ -207,5 +214,5 @@ void loop()
     radio.startReceive();
   }
 
-  delay(2000);  // send every 2 seconds
+  delay(2000); // send every 2 seconds
 }

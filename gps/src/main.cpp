@@ -29,7 +29,7 @@ static const int LORA_BUSY = 13;
 /****************LoRa parameters (you need to fill these params)******************/
 static const float FREQ = 905;
 static const float BW = 125;
-static const uint8_t SF = 5;
+static const uint8_t SF = 9;
 static const int8_t TX_PWR = 20;
 static const uint8_t CR = 5;
 static const uint8_t SYNC_WORD = (uint8_t)0x34;
@@ -57,11 +57,11 @@ SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 ICACHE_RAM_ATTR
 #endif
 
-struct __attribute__((__packed__)) Packet {
+struct __attribute__((__packed__)) Packet
+{
   uint8_t type;
   uint8_t id;
-  float gps;     
-  
+  float gps;
 };
 
 void setFlag(void)
@@ -92,7 +92,7 @@ int valid_data = 0;
 // parsing gps data and print it to Serial
 void displayInfo()
 {
-  Serial.print(F("Location: ")); 
+  Serial.print(F("Location: "));
   if (gps.location.isValid())
   {
     float *lat_long = new float[2];
@@ -127,16 +127,20 @@ void displayInfo()
   Serial.print(F(" "));
   if (gps.time.isValid())
   {
-    if (gps.time.hour() < 10) Serial.print(F("0"));
+    if (gps.time.hour() < 10)
+      Serial.print(F("0"));
     Serial.print(gps.time.hour());
     Serial.print(F(":"));
-    if (gps.time.minute() < 10) Serial.print(F("0"));
+    if (gps.time.minute() < 10)
+      Serial.print(F("0"));
     Serial.print(gps.time.minute());
     Serial.print(F(":"));
-    if (gps.time.second() < 10) Serial.print(F("0"));
+    if (gps.time.second() < 10)
+      Serial.print(F("0"));
     Serial.print(gps.time.second());
     Serial.print(F("."));
-    if (gps.time.centisecond() < 10) Serial.print(F("0"));
+    if (gps.time.centisecond() < 10)
+      Serial.print(F("0"));
     Serial.print(gps.time.centisecond());
   }
   else
@@ -146,7 +150,6 @@ void displayInfo()
 
   Serial.println();
 }
-
 
 // setup device
 void setup()
@@ -218,17 +221,22 @@ void setup()
   }
 }
 
-// helper function to read raw GPS data and return complete sentences 
-String read_GPS() {
+// helper function to read raw GPS data and return complete sentences
+String read_GPS()
+{
   // Serial.println(Serial1.read());
-  while (Serial1.available() > 0) {
+  while (Serial1.available() > 0)
+  {
     char c = Serial1.read();
-    if (c == '\n') {
+    if (c == '\n')
+    {
       String complete_sentence = gps_buffer;
       gps_buffer = "";
-      complete_sentence.trim(); 
+      complete_sentence.trim();
       return complete_sentence;
-    } else {
+    }
+    else
+    {
       gps_buffer += c;
     }
   }
@@ -238,45 +246,54 @@ String read_GPS() {
 void loop()
 {
   // read raw GPS data and print it to Serial
-  while (Serial1.available() > 0) {
-      char c = Serial1.read();
-      Serial.print(c);
-      if (gps.encode(c)) {
-          displayInfo();
-      }
+  while (Serial1.available() > 0)
+  {
+    char c = Serial1.read();
+    Serial.print(c);
+    if (gps.encode(c))
+    {
+      displayInfo();
+    }
   }
 
-  if (!valid_data) {
-    Serial.println("No valid GPS data available. Skipping transmission.");
-    return;
-  }
+  // if (!valid_data)
+  // {
+  //   Serial.println("No valid GPS data available. Skipping transmission.");
+  //   return;
+  // }
 
   Packet pkt1;
-  pkt1.type = 0x01; 
-  pkt1.id = 0x02; 
+  pkt1.type = 0x01;
+  pkt1.id = 0x02;
   pkt1.gps = latitude;
 
   Packet pkt2;
-  pkt2.type = 0x02; 
-  pkt2.id = 0x02; 
+  pkt2.type = 0x02;
+  pkt2.id = 0x02;
   pkt2.gps = longitude;
 
-// Transmit gps data packet
+  // Transmit gps data packet
   Serial.println("[SX1262] Transmitting packet...");
-  int state = radio.transmit((uint8_t*)&pkt1, sizeof(pkt1));
+  int state = radio.transmit((uint8_t *)&pkt1, sizeof(pkt1));
 
-  if (state == RADIOLIB_ERR_NONE) {
+  if (state == RADIOLIB_ERR_NONE)
+  {
     Serial.println("Transmit success");
-  } else {
+  }
+  else
+  {
     Serial.print("Transmit failed, code ");
     Serial.println(state);
   }
 
-  state = radio.transmit((uint8_t*)&pkt2, sizeof(pkt2));
+  state = radio.transmit((uint8_t *)&pkt2, sizeof(pkt2));
 
-  if (state == RADIOLIB_ERR_NONE) {
+  if (state == RADIOLIB_ERR_NONE)
+  {
     Serial.println("Transmit success");
-  } else {
+  }
+  else
+  {
     Serial.print("Transmit failed, code ");
     Serial.println(state);
   }
@@ -284,17 +301,20 @@ void loop()
   radio.startReceive();
 
   // check if we receive data
-  if (rx_flag) {
+  if (rx_flag)
+  {
     rx_flag = false;
 
     Packet rx_pkt;
-    int state = radio.readData((uint8_t*)&rx_pkt, sizeof(rx_pkt));
+    int state = radio.readData((uint8_t *)&rx_pkt, sizeof(rx_pkt));
 
-    if (state == RADIOLIB_ERR_NONE) {
+    if (state == RADIOLIB_ERR_NONE)
+    {
       Serial.println("[SX1262] Received packet!");
 
       // validate type
-      if (rx_pkt.type != 0xAB) {
+      if (rx_pkt.type != 0xAB)
+      {
         Serial.println("Invalid packet");
         return;
       }
@@ -305,10 +325,12 @@ void loop()
       Serial.print("SNR: ");
       Serial.println(radio.getSNR());
     }
-    else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+    else if (state == RADIOLIB_ERR_CRC_MISMATCH)
+    {
       Serial.println("CRC error!");
     }
-    else {
+    else
+    {
       Serial.print("Receive failed, code ");
       Serial.println(state);
     }
@@ -316,5 +338,5 @@ void loop()
     radio.startReceive();
   }
 
-  delay(2000);  // send every 2 seconds
+  delay(2000); // send every 2 seconds
 }
