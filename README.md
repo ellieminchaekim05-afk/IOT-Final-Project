@@ -38,7 +38,39 @@ npm run dev
 ```
 
 ### Light Sensor Peripheral Device
+Hardware setup: 
+1. To set up the hardware for this peripheral device, a photoresistor, a 10 kOhm resistor, and a Heltec board are needed. 
+2. One leg of the photo resistor must be connected to the 3.3V pin on the Heltec. 
+3. The other leg of the photoresistor will be connected to the 10kOhm resistor, which is connected to the GND pin on the other side. 
+4. The junction between the photoresistor and the resistor is connected to pin 7 on the Heltec, which is the input signal.
+
+Software setup: 
+1. Open the `light` directory in VS Code with the PlatformIO extension installed.
+2. Connect the peripheral device to your computer and select the appropriate serial port in PlatformIO.
+3. Upload the code to the device, a Heltec LoRa 32(V3) board with the antenna connected and the correct hardware set up, and open the serial monitor to view the output.
 
 ### Moisture Sensor Peripheral Device
+Hardware setup: 
+1. To set up the hardware for this peripheral device, a soil moisture sensor and a Heltec board are required.
+2. The VDD pin on the soil sensor needs to be connected to a 5V power pin on the Heltec.
+3. Connect the GND pins on both the sensor and the device together.
+4. The ACC pin on the soil moisture sensor needs to be connected to GPIO 3 (Pin 14).
+
+Software setup: 
+1. Open the `soil` directory in VS Code with the PlatformIO extension installed.
+2. Connect the peripheral device to your computer and select the appropriate serial port in PlatformIO.
+3. Upload the code to the device, a Heltec LoRa 32(V3) board with the antenna connected and the correct hardware set up, and open the serial monitor to view the output.
+
 
 ### GPS Sensor Peripheral Device
+Hardware setup: 
+1. To set up the hardware for this peripheral device, a GPS sensor (GT-U7) and a Heltec board are required.
+2. The VDD pin on the GPS sensor needs to be connected to a 5V power pin on the Heltec.
+3. Connect the GND pins on both the sensor and the device together.
+4. The GPS RX pin needs to be connected to pin 45, and the GPS TX pin connected to pin 46.
+
+Software setup: 
+1. Open the `gps` directory in VS Code with the PlatformIO extension installed.
+2. Connect the peripheral device to your computer and select the appropriate serial port in PlatformIO.
+3. Upload the code to the device, a Heltec LoRa 32(V3) board with the antenna connected and the correct hardware set up, and open the serial monitor to view the output.
+4. The GPS sensor is a little finicky and requires a clear satellite connection. This means that it will work better if the device is outside without anything blocking it.
